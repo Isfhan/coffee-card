@@ -26,6 +26,8 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Coffee Card needs photo library access to attach images to your coffee cards.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

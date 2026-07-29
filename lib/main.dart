@@ -1,66 +1,33 @@
+import 'package:coffee_card/app.dart';
+import 'package:coffee_card/data/repositories/auth_repository.dart';
+import 'package:coffee_card/data/repositories/coffee_card_repository.dart';
+import 'package:coffee_card/data/services/app_database.dart';
+import 'package:coffee_card/data/services/image_storage_service.dart';
+import 'package:coffee_card/routing/app_router.dart';
+import 'package:coffee_card/ui/features/auth/view_models/auth_view_model.dart';
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const CoffeeCardApp());
-}
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-class CoffeeCardApp extends StatelessWidget {
-  const CoffeeCardApp({super.key});
+  final database = await AppDatabase.open();
+  final imageStorage = ImageStorageService();
+  await imageStorage.ensureInitialized();
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        // App bar of the app
-        appBar: AppBar(
-          backgroundColor: Colors.black,
-          centerTitle: true,
-          title: Text(
-            'Coffee Card',
-            style: TextStyle(
-              color: Colors.amber,
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+  final authRepository = AuthRepository(database);
+  final cardRepository = CoffeeCardRepository(database, imageStorage);
+  await authRepository.initialize();
 
-          actions: [
-            IconButton(
-              onPressed: () {
-                print('Settings icon pressed');
-              },
-              icon: Icon(Icons.settings),
-            ),
-          ],
-        ),
+  final authViewModel = AuthViewModel(authRepository);
+  final router = createAppRouter(authViewModel: authViewModel);
 
-        // Body of the app
-        body: Container(
-          color: Colors.black12,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Column(children: [Text('1')]),
-              Column(children: [Text('2')]),
-              Column(children: [Text('3')]),
-            ],
-          ),
-        ),
-
-        // Bottom navigation bar
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: Colors.black,
-          selectedItemColor: Colors.amber,
-          unselectedItemColor: Colors.white,
-          items: [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  runApp(
+    AppScope(
+      authRepository: authRepository,
+      cardRepository: cardRepository,
+      authViewModel: authViewModel,
+      router: router,
+      child: CoffeeCardApp(router: router),
+    ),
+  );
 }

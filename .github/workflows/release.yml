@@ -1,0 +1,549 @@
+name: Release
+
+
+
+on:
+
+  push:
+
+    tags:
+
+      - "v*"
+
+  workflow_dispatch:
+
+
+
+permissions:
+
+  contents: write
+
+
+
+concurrency:
+
+  group: release-${{ github.ref }}
+
+  cancel-in-progress: false
+
+
+
+jobs:
+
+  quality:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up Java
+
+        uses: actions/setup-java@v4
+
+        with:
+
+          distribution: temurin
+
+          java-version: "17"
+
+
+
+      - name: Set up Flutter
+
+        uses: subosito/flutter-action@v2
+
+        with:
+
+          channel: stable
+
+          cache: true
+
+
+
+      - name: Install dependencies
+
+        run: flutter pub get
+
+
+
+      - name: Generate Drift code
+
+        run: dart run build_runner build
+
+
+
+      - name: Analyze
+
+        run: flutter analyze
+
+
+
+      - name: Test
+
+        run: flutter test
+
+
+
+  build-android:
+
+    needs: quality
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up Java
+
+        uses: actions/setup-java@v4
+
+        with:
+
+          distribution: temurin
+
+          java-version: "17"
+
+
+
+      - name: Set up Flutter
+
+        uses: subosito/flutter-action@v2
+
+        with:
+
+          channel: stable
+
+          cache: true
+
+
+
+      - name: Install dependencies
+
+        run: flutter pub get
+
+
+
+      - name: Generate Drift code
+
+        run: dart run build_runner build
+
+
+
+      - name: Build release APK
+
+        run: flutter build apk --release
+
+
+
+      - name: Build release App Bundle
+
+        run: flutter build appbundle --release
+
+
+
+      - name: Upload Android artifacts
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: android-builds
+
+          path: |
+
+            build/app/outputs/flutter-apk/app-release.apk
+
+            build/app/outputs/bundle/release/app-release.aab
+
+          if-no-files-found: error
+
+
+
+  build-windows:
+
+    needs: quality
+
+    runs-on: windows-latest
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up Flutter
+
+        uses: subosito/flutter-action@v2
+
+        with:
+
+          channel: stable
+
+          cache: true
+
+
+
+      - name: Install dependencies
+
+        run: flutter pub get
+
+
+
+      - name: Generate Drift code
+
+        run: dart run build_runner build
+
+
+
+      - name: Build Windows release
+
+        run: flutter build windows --release
+
+
+
+      - name: Package Windows build
+
+        shell: pwsh
+
+        run: |
+
+          $source = "build/windows/x64/runner/Release"
+
+          $archive = "coffee_card-windows-x64.zip"
+
+          Compress-Archive -Path "$source/*" -DestinationPath $archive
+
+          Get-Item $archive
+
+
+
+      - name: Upload Windows artifact
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: windows-build
+
+          path: coffee_card-windows-x64.zip
+
+          if-no-files-found: error
+
+
+
+  build-ios:
+
+    needs: quality
+
+    runs-on: macos-latest
+
+    env:
+
+      IOS_SIGNING_CONFIGURED: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 != '' && secrets.IOS_BUILD_PROVISION_PROFILE_BASE64 != '' && secrets.IOS_APPLE_TEAM_ID != '' && secrets.IOS_KEYCHAIN_PASSWORD != '' }}
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up Flutter
+
+        uses: subosito/flutter-action@v2
+
+        with:
+
+          channel: stable
+
+          cache: true
+
+
+
+      - name: Install dependencies
+
+        run: flutter pub get
+
+
+
+      - name: Generate Drift code
+
+        run: dart run build_runner build
+
+
+
+      - name: Install Apple signing assets
+
+        if: env.IOS_SIGNING_CONFIGURED == 'true'
+
+        env:
+
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+
+          P12_PASSWORD: ${{ secrets.IOS_BUILD_CERTIFICATE_PASSWORD }}
+
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_BUILD_PROVISION_PROFILE_BASE64 }}
+
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+
+        run: bash .github/scripts/ios_signing_setup.sh
+
+
+
+      - name: Configure iOS export options
+
+        if: env.IOS_SIGNING_CONFIGURED == 'true'
+
+        env:
+
+          IOS_APPLE_TEAM_ID: ${{ secrets.IOS_APPLE_TEAM_ID }}
+
+        run: |
+
+          sed "s/TEAM_ID_PLACEHOLDER/${IOS_APPLE_TEAM_ID}/g" ios/ExportOptions.plist > ios/ExportOptions.ci.plist
+
+
+
+      - name: Build signed IPA
+
+        if: env.IOS_SIGNING_CONFIGURED == 'true'
+
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.ci.plist
+
+
+
+      - name: Build iOS (unsigned smoke test)
+
+        if: env.IOS_SIGNING_CONFIGURED != 'true'
+
+        run: flutter build ios --release --no-codesign
+
+
+
+      - name: Package IPA artifact
+
+        if: env.IOS_SIGNING_CONFIGURED == 'true'
+
+        run: |
+
+          IPA_PATH="$(find build/ios/ipa -name '*.ipa' -print -quit)"
+
+          test -n "${IPA_PATH}"
+
+          cp "${IPA_PATH}" coffee_card-ios.ipa
+
+
+
+      - name: Upload iOS artifact
+
+        if: env.IOS_SIGNING_CONFIGURED == 'true'
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: ios-build
+
+          path: coffee_card-ios.ipa
+
+          if-no-files-found: error
+
+
+
+  build-macos:
+
+    needs: quality
+
+    runs-on: macos-latest
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up Flutter
+
+        uses: subosito/flutter-action@v2
+
+        with:
+
+          channel: stable
+
+          cache: true
+
+
+
+      - name: Install dependencies
+
+        run: flutter pub get
+
+
+
+      - name: Generate Drift code
+
+        run: dart run build_runner build
+
+
+
+      - name: Build macOS release
+
+        run: flutter build macos --release
+
+
+
+      - name: Package macOS app
+
+        run: |
+
+          APP_PATH="build/macos/Build/Products/Release/coffee_card.app"
+
+          test -d "${APP_PATH}"
+
+          ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" coffee_card-macos.zip
+
+
+
+      - name: Upload macOS artifact
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: macos-build
+
+          path: coffee_card-macos.zip
+
+          if-no-files-found: error
+
+
+
+  publish-release:
+
+    needs: [build-android, build-windows, build-ios, build-macos]
+
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Download Android artifacts
+
+        uses: actions/download-artifact@v4
+
+        with:
+
+          name: android-builds
+
+          path: dist/android
+
+
+
+      - name: Download Windows artifact
+
+        uses: actions/download-artifact@v4
+
+        with:
+
+          name: windows-build
+
+          path: dist/windows
+
+
+
+      - name: Download macOS artifact
+
+        uses: actions/download-artifact@v4
+
+        with:
+
+          name: macos-build
+
+          path: dist/macos
+
+
+
+      - name: Download iOS artifact
+
+        uses: actions/download-artifact@v4
+
+        continue-on-error: true
+
+        with:
+
+          name: ios-build
+
+          path: dist/ios
+
+
+
+      - name: Prepare release assets
+
+        run: |
+
+          mkdir -p dist
+
+          cp dist/android/app-release.apk dist/coffee_card-android.apk
+
+          cp dist/android/app-release.aab dist/coffee_card-android.aab
+
+          cp dist/windows/coffee_card-windows-x64.zip dist/
+
+          cp dist/macos/coffee_card-macos.zip dist/
+
+          if [ -f dist/ios/coffee_card-ios.ipa ]; then
+
+            cp dist/ios/coffee_card-ios.ipa dist/
+
+          fi
+
+          ls -la dist
+
+
+
+      - name: Collect release asset paths
+        id: release_files
+        run: |
+          assets=(
+            dist/coffee_card-android.apk
+            dist/coffee_card-android.aab
+            dist/coffee_card-windows-x64.zip
+            dist/coffee_card-macos.zip
+          )
+          if [ -f dist/coffee_card-ios.ipa ]; then
+            assets+=(dist/coffee_card-ios.ipa)
+          fi
+          {
+            echo "paths<<EOF"
+            printf '%s\n' "${assets[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Coffee Card ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ${{ steps.release_files.outputs.paths }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+

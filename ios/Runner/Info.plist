@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Coffee Card needs photo library access to attach images to your coffee cards.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Coffee Card can use the camera to take photos for your coffee cards.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
