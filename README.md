@@ -191,7 +191,9 @@ If `flutter pub get` or plugin builds complain about symlinks, enable **Develope
 
 ### GitHub Actions: Android `lintVitalAnalyzeRelease` failed
 
-If the Release workflow fails on `:image_picker_android:lintVitalAnalyzeRelease` (lint `CommentDetector` / `List.removeLast()`), ensure you have the latest `android/gradle.properties` with `android.lint.checkReleaseBuilds=false`, commit, push, and re-run the workflow or push a new `v*` tag.
+If the Release workflow fails on `:image_picker_android:lintVitalAnalyzeRelease` (lint `CommentDetector` crash), the Android Gradle config skips release lint and disables `lintVital*` tasks for all modules (including plugins). Ensure you have the latest `android/build.gradle.kts`, `android/gradle.properties`, and `android/app/build.gradle.kts`, then re-run the workflow or push a new `v*` tag.
+
+The message `Already watching path: .../android` is from the file watcher and is not the cause of the failure.
 
 ## License
 

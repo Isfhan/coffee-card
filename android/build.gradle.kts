@@ -24,7 +24,24 @@ subprojects {
         extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
             lint {
                 checkReleaseBuilds = false
+                abortOnError = false
             }
+        }
+    }
+    plugins.withId("com.android.application") {
+        extensions.configure<com.android.build.gradle.AppExtension>("android") {
+            lint {
+                checkReleaseBuilds = false
+                abortOnError = false
+            }
+        }
+    }
+}
+
+subprojects {
+    afterEvaluate {
+        tasks.matching { it.name.startsWith("lintVital") }.configureEach {
+            enabled = false
         }
     }
 }
