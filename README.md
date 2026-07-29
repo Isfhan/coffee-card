@@ -189,6 +189,10 @@ The repo sets `kotlin.incremental=false` and in-process Kotlin compilation in [`
 
 If `flutter pub get` or plugin builds complain about symlinks, enable **Developer Mode** in Windows settings (`start ms-settings:developers`).
 
+### GitHub Actions: Android `lintVitalAnalyzeRelease` failed
+
+If the Release workflow fails on `:image_picker_android:lintVitalAnalyzeRelease` (lint `CommentDetector` / `List.removeLast()`), ensure you have the latest `android/gradle.properties` with `android.lint.checkReleaseBuilds=false`, commit, push, and re-run the workflow or push a new `v*` tag.
+
 ## License
 
 Private learning project (`publish_to: 'none'` in `pubspec.yaml`).
